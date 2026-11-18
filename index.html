@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Loli's Trading Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Space+Grotesk:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#03060d;
+    --panel:#070d19;
+    --panel-2:#0a1324;
+    --line:rgba(56,140,255,.25);
+    --line-strong:rgba(56,140,255,.55);
+    --blue:#2f81f7;
+    --blue-bright:#5eb0ff;
+    --cyan:#38d6ff;
+    --white:#e8f0ff;
+    --muted:#6f819f;
+    --up:#2ee6a6;
+    --down:#ff5c7a;
+    --mono:'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    --sans:'Space Grotesk', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    color:var(--white);
+    font-family:var(--mono);
+    font-weight:300;
+    line-height:1.6;
+    -webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* terminal grid + scanlines */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(rgba(56,140,255,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(56,140,255,.06) 1px, transparent 1px);
+    background-size:48px 48px;
+    mask-image:radial-gradient(ellipse at 50% 25%, #000 0%, transparent 78%);
+    -webkit-mask-image:radial-gradient(ellipse at 50% 25%, #000 0%, transparent 78%);
+  }
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:50;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 1px, transparent 1px 3px);
+  }
+
+  /* ---------- TOP STATUS BAR ---------- */
+  .topbar{
+    position:fixed;top:0;left:0;right:0;z-index:40;
+    display:flex;justify-content:space-between;align-items:center;gap:16px;
+    padding:10px 22px;
+    background:rgba(3,6,13,.82);backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    font-size:.64rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);
+  }
+  .topbar .l{display:flex;align-items:center;gap:14px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--up);box-shadow:0 0 10px var(--up);animation:pulse 2s infinite}
+  @keyframes pulse{50%{opacity:.35}}
+  .topbar b{color:var(--blue-bright);font-weight:500}
+  .topbar nav{display:flex;gap:20px}
+  .topbar a{color:var(--muted);text-decoration:none;transition:color .2s}
+  .topbar a:hover{color:var(--cyan)}
+  @media(max-width:640px){.topbar nav{display:none}}
+
+  /* ---------- HERO ---------- */
+  .hero{position:relative;height:230vh;z-index:1}
+  .stage{
+    position:sticky;top:0;height:100vh;
+    display:flex;align-items:center;justify-content:center;overflow:hidden;
+  }
+  .hero-title{position:absolute;z-index:3;text-align:center;width:100%;padding:0 24px}
+  .hero-title h1{
+    font-family:var(--sans);font-weight:300;
+    font-size:clamp(3rem, 10vw, 9rem);
+    line-height:.95;letter-spacing:-.02em;
+    text-shadow:0 0 60px rgba(47,129,247,.35);
+  }
+  .hero-title h1 em{
+    font-style:normal;font-weight:700;
+    background:linear-gradient(100deg,var(--blue) 0%, var(--cyan) 60%, var(--blue-bright) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+  }
+  .rule{
+    width:120px;height:2px;margin:34px auto 0;
+    background:linear-gradient(90deg,transparent,var(--cyan),transparent);
+    box-shadow:0 0 18px var(--cyan);
+  }
+  .portrait-wrap{
+    position:absolute;z-index:2;
+    height:86vh;aspect-ratio:3/4;max-width:92vw;
+    opacity:0;will-change:opacity,transform;
+  }
+  .portrait{
+    position:relative;width:100%;height:100%;overflow:hidden;
+    background:#e9e6df;
+    border:1px solid var(--line-strong);
+    box-shadow:0 0 0 1px rgba(56,140,255,.15), 0 40px 120px rgba(0,0,0,.85), 0 0 90px rgba(47,129,247,.25);
+  }
+  .portrait img{
+    width:100%;height:100%;object-fit:cover;display:block;
+  }
+  .portrait::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg, transparent 60%, rgba(3,6,13,.85) 100%);
+  }
+  .portrait .fallback{
+    position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+    text-align:center;padding:30px;color:#cfe2ff;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;
+  }
+  /* corner brackets */
+  .bracket{position:absolute;width:26px;height:26px;border:1px solid var(--cyan);z-index:4;pointer-events:none}
+  .bracket.tl{top:-8px;left:-8px;border-right:none;border-bottom:none}
+  .bracket.tr{top:-8px;right:-8px;border-left:none;border-bottom:none}
+  .bracket.bl{bottom:-8px;left:-8px;border-right:none;border-top:none}
+  .bracket.br{bottom:-8px;right:-8px;border-left:none;border-top:none}
+
+  .scroll-hint{
+    position:absolute;bottom:34px;left:50%;transform:translateX(-50%);z-index:4;
+    font-size:.62rem;letter-spacing:.45em;text-transform:uppercase;color:var(--muted);
+    display:flex;flex-direction:column;align-items:center;gap:14px;
+  }
+  .scroll-hint .line{width:1px;height:46px;background:linear-gradient(var(--cyan),transparent);animation:drip 2.2s ease-in-out infinite}
+  @keyframes drip{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+
+  /* ---------- SECTIONS ---------- */
+  main{position:relative;z-index:2;background:linear-gradient(180deg,transparent, var(--bg) 120px)}
+  section.calc{max-width:1000px;margin:0 auto;padding:130px 24px 40px}
+  .reveal{opacity:0;transform:translateY(36px);transition:opacity .9s ease, transform .9s ease}
+  .reveal.in{opacity:1;transform:none}
+
+  .sec-tag{
+    display:inline-block;font-size:.66rem;letter-spacing:.3em;text-transform:uppercase;
+    color:var(--cyan);border:1px solid var(--line-strong);padding:5px 12px;margin-bottom:18px;
+    background:rgba(56,214,255,.06);
+  }
+  h2{
+    font-family:var(--sans);font-weight:500;
+    font-size:clamp(2rem,5vw,3.4rem);line-height:1.05;letter-spacing:-.02em;margin-bottom:14px;
+  }
+  .formula{
+    font-size:.72rem;letter-spacing:.08em;color:var(--blue-bright);margin-bottom:40px;
+  }
+  .formula::before{content:"> ";color:var(--cyan)}
+
+  /* terminal window panel */
+  .term{
+    background:linear-gradient(180deg,var(--panel-2),var(--panel));
+    border:1px solid var(--line);
+    box-shadow:0 30px 80px rgba(0,0,0,.6), 0 0 60px rgba(47,129,247,.06);
+  }
+  .term-head{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:10px 18px;border-bottom:1px solid var(--line);
+    background:rgba(47,129,247,.07);
+    font-size:.62rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+  }
+  .term-head .dots{display:flex;gap:6px}
+  .term-head .dots i{width:8px;height:8px;border-radius:50%;background:#16264a;display:block}
+  .term-head .dots i:first-child{background:var(--blue)}
+  .term-body{padding:36px}
+  @media(max-width:700px){.term-body{padding:24px 18px}}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  @media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+  label{
+    display:block;font-size:.64rem;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--blue-bright);margin-bottom:10px;
+  }
+  .hint{font-size:.68rem;color:var(--muted);margin-top:8px}
+  .field{position:relative}
+  input[type=number]{
+    width:100%;background:rgba(47,129,247,.05);
+    border:1px solid var(--line);
+    color:var(--white);font-family:var(--mono);font-size:1.5rem;font-weight:400;
+    padding:14px 16px;outline:none;transition:border-color .25s, box-shadow .25s, background .25s;
+    -moz-appearance:textfield;
+  }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+  input[type=number]:focus{
+    border-color:var(--cyan);background:rgba(56,214,255,.07);
+    box-shadow:0 0 0 1px rgba(56,214,255,.3), 0 0 24px rgba(56,214,255,.15);
+  }
+  input::placeholder{color:#263556}
+
+  .results{margin-top:36px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:700px){.results{grid-template-columns:1fr}}
+  .stat{
+    border:1px solid var(--line);padding:20px 22px;position:relative;
+    background:rgba(47,129,247,.04);
+  }
+  .stat .k{font-size:.6rem;letter-spacing:.24em;text-transform:uppercase;color:var(--muted)}
+  .stat .v{
+    font-family:var(--mono);font-variant-numeric:tabular-nums;
+    font-size:clamp(1.6rem,4.4vw,2.4rem);margin-top:6px;font-weight:500;color:var(--white);
+  }
+  .stat .sub{font-size:.66rem;color:var(--muted);margin-top:2px}
+  .stat.up{border-color:rgba(46,230,166,.4)}
+  .stat.up .v{color:var(--up);text-shadow:0 0 22px rgba(46,230,166,.35)}
+  .stat.up .k::before{content:"▲ ";color:var(--up)}
+  .stat.down{border-color:rgba(255,92,122,.4)}
+  .stat.down .v{color:var(--down);text-shadow:0 0 22px rgba(255,92,122,.35)}
+  .stat.down .k::before{content:"▼ ";color:var(--down)}
+
+  .note{
+    margin-top:30px;padding:18px 22px;border-left:2px solid var(--cyan);
+    background:rgba(56,214,255,.05);
+    font-size:.8rem;color:#bcd0f2;
+  }
+  .note::before{content:"// ";color:var(--cyan)}
+
+  .divider{max-width:1000px;margin:70px auto 0;padding:0 24px}
+  .divider div{height:1px;background:linear-gradient(90deg,transparent,var(--blue),transparent);opacity:.6}
+
+  .ibw{
+    margin-top:30px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;
+    border:1px solid var(--line-strong);padding:18px 22px;background:rgba(47,129,247,.07);
+  }
+  .ibw .k{font-size:.66rem;letter-spacing:.24em;text-transform:uppercase;color:var(--blue-bright)}
+  .ibw .auto{font-size:.6rem;letter-spacing:.16em;color:var(--muted);text-transform:uppercase;margin-top:2px}
+  .ibw .v{font-size:2rem;font-weight:500;font-variant-numeric:tabular-nums;color:var(--cyan);text-shadow:0 0 22px rgba(56,214,255,.35)}
+
+  .sub-head{
+    font-family:var(--sans);font-size:1.15rem;font-weight:500;color:var(--white);
+    margin:40px 0 20px;padding-bottom:10px;border-bottom:1px solid var(--line);
+  }
+  .sub-head span{color:var(--cyan);font-family:var(--mono);font-size:.7rem;letter-spacing:.2em;margin-right:10px}
+
+  #extResults{margin-top:34px;display:grid;gap:22px}
+  .ext-box{
+    border:1px solid var(--line-strong);padding:26px;position:relative;
+    background:linear-gradient(160deg,rgba(47,129,247,.12),rgba(47,129,247,.02));
+    animation:fadeUp .6s ease both;
+  }
+  .ext-box::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--cyan);box-shadow:0 0 16px var(--cyan)}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  .ext-top{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+  .ext-top .side{font-size:.62rem;letter-spacing:.26em;text-transform:uppercase;color:var(--muted)}
+  .ext-top .pct{
+    font-size:clamp(2.4rem,7vw,4rem);line-height:1.05;font-weight:700;font-variant-numeric:tabular-nums;
+    color:var(--cyan);text-shadow:0 0 30px rgba(56,214,255,.4);
+  }
+  .ext-top .calc{font-size:.7rem;color:var(--muted);text-align:right}
+  .ext-box h3{font-family:var(--sans);font-weight:500;font-size:1.35rem;margin-bottom:8px}
+  .ext-box h3 span{color:var(--blue-bright);font-size:1rem;font-weight:400}
+  .ext-box p{font-size:.84rem;color:#bcd0f2;max-width:72ch}
+  .ext-box .warn{margin-top:12px;font-size:.72rem;color:var(--down)}
+
+  /* meanings */
+  footer{max-width:1000px;margin:0 auto;padding:100px 24px 120px}
+  footer h2{margin-bottom:40px}
+  .meaning{
+    display:grid;grid-template-columns:220px 1fr;gap:28px;
+    padding:26px 0;border-top:1px solid var(--line);
+  }
+  .meaning:last-of-type{border-bottom:1px solid var(--line)}
+  .meaning .m-label{font-size:1.7rem;font-weight:700;color:var(--cyan);line-height:1.1;text-shadow:0 0 22px rgba(56,214,255,.3)}
+  .meaning .m-label small{
+    display:block;font-family:var(--mono);font-weight:400;font-size:.6rem;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--muted);margin-top:10px;text-shadow:none;
+  }
+  .meaning p{font-size:.84rem;color:#c3d4f3}
+  @media(max-width:700px){.meaning{grid-template-columns:1fr;gap:10px}}
+
+  .credit{text-align:center;font-size:.6rem;letter-spacing:.35em;text-transform:uppercase;color:#2c3c5e;padding-bottom:50px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="l"><span class="dot"></span><b>LOLI</b><span>Trading Terminal</span></div>
+  <nav>
+    <a href="#vix">VIX Range</a>
+    <a href="#ib">IB Extension</a>
+    <a href="#ref">Reference</a>
+  </nav>
+</div>
+
+<!-- ============ HERO ============ -->
+<header class="hero" id="hero">
+  <div class="stage">
+    <div class="portrait-wrap" id="portraitWrap">
+      <div class="portrait">
+        <!-- Save your photo next to this file as model.jpg -->
+        <img src="model.jpg" alt="" id="portraitImg">
+        <div class="fallback" id="portraitFallback">Place your photo next to this file and name it model.jpg</div>
+      </div>
+      <i class="bracket tl"></i><i class="bracket tr"></i><i class="bracket bl"></i><i class="bracket br"></i>
+    </div>
+
+    <div class="hero-title" id="heroTitle">
+      <h1>Loli's<br><em>Trading</em><br>Calculator</h1>
+      <div class="rule"></div>
+    </div>
+
+    <div class="scroll-hint" id="scrollHint">
+      <span>Scroll</span>
+      <span class="line"></span>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ EQUATION 1 : VIX ============ -->
+  <section class="calc" id="vix">
+    <div class="reveal">
+      <div class="sec-tag">Equation 01</div>
+      <h2>The VIX Equation</h2>
+      <div class="formula">(VIX close × 1.2) ÷ 15.87 → % × NQ open → ± from open</div>
+    </div>
+
+    <div class="term reveal">
+      <div class="term-head"><div class="dots"><i></i><i></i><i></i></div><span>vix_range.calc</span></div>
+      <div class="term-body">
+        <div class="grid">
+          <div class="field">
+            <label for="vixClose">Previous day's VIX closing price</label>
+            <input type="number" id="vixClose" step="any" inputmode="decimal" placeholder="0.00">
+          </div>
+          <div class="field">
+            <label for="nqOpen">Today's NQ opening price</label>
+            <input type="number" id="nqOpen" step="any" inputmode="decimal" placeholder="0.00">
+          </div>
+        </div>
+
+        <div class="results">
+          <div class="stat up">
+            <div class="k">VIX High</div>
+            <div class="v" id="vixHigh">—</div>
+            <div class="sub">NQ open + expected move</div>
+          </div>
+          <div class="stat down">
+            <div class="k">VIX Low</div>
+            <div class="v" id="vixLow">—</div>
+            <div class="sub">NQ open − expected move</div>
+          </div>
+          <div class="stat">
+            <div class="k">Expected daily move</div>
+            <div class="v" id="vixPct">—</div>
+            <div class="sub">percentage</div>
+          </div>
+          <div class="stat">
+            <div class="k">Expected move in points</div>
+            <div class="v" id="vixPts">—</div>
+            <div class="sub">percentage × NQ open</div>
+          </div>
+        </div>
+
+        <div class="note">
+          The VIX high and VIX low are points in which price is likely to move. If one is mitigated, it is a confluence for the other direction.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="divider"><div></div></div>
+
+  <!-- ============ EQUATION 2 : IB EXTENSION ============ -->
+  <section class="calc" id="ib">
+    <div class="reveal">
+      <div class="sec-tag">Equation 02</div>
+      <h2>Initial Balance Extension</h2>
+      <div class="formula">(IBL − CL) or (CH − IBH) → x ÷ IBW × 100</div>
+    </div>
+
+    <div class="term reveal">
+      <div class="term-head"><div class="dots"><i></i><i></i><i></i></div><span>ib_extension.calc</span></div>
+      <div class="term-body">
+        <div class="grid">
+          <div class="field">
+            <label for="ibh">IBH — Initial balance high</label>
+            <input type="number" id="ibh" step="any" inputmode="decimal" placeholder="0.00">
+          </div>
+          <div class="field">
+            <label for="ibl">IBL — Initial balance low</label>
+            <input type="number" id="ibl" step="any" inputmode="decimal" placeholder="0.00">
+          </div>
+        </div>
+        <div class="hint">The highest and lowest point of the first hour of NY open (2:30 – 3:30 UK time).</div>
+
+        <div class="ibw">
+          <div>
+            <div class="k">Initial Balance Width</div>
+            <div class="auto">Auto calculated · IBH − IBL</div>
+          </div>
+          <div class="v" id="ibw">—</div>
+        </div>
+
+        <div class="note">
+          The IBH and IBL are points in which price is likely to move. If one is mitigated, it is a confluence for the other direction.
+        </div>
+
+        <div class="sub-head"><span>STEP 02</span>Whichever side breaks first forms the current high / low</div>
+
+        <div class="grid">
+          <div class="field">
+            <label for="ch">Current high (IBH broken first)</label>
+            <input type="number" id="ch" step="any" inputmode="decimal" placeholder="0.00">
+            <div class="hint">CH − IBH = x</div>
+          </div>
+          <div class="field">
+            <label for="cl">Current low (IBL broken first)</label>
+            <input type="number" id="cl" step="any" inputmode="decimal" placeholder="0.00">
+            <div class="hint">IBL − CL = x</div>
+          </div>
+        </div>
+
+        <div id="extResults"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ============ MEANINGS ============ -->
+<footer id="ref">
+  <div class="reveal">
+    <div class="sec-tag">Reference</div>
+    <h2>What the extension means</h2>
+  </div>
+
+  <div class="meaning reveal">
+    <div class="m-label">&lt; 50%<small>Weak / Failed Extension</small></div>
+    <p>Price breaks out of the initial range by less than half of the IB height and falls back inside. This shows that buyers or sellers are defending the boundary, signaling a Range Bound or Neutral Day suited for mean-reversion trades back toward the IB midpoint or opposite end.</p>
+  </div>
+  <div class="meaning reveal">
+    <div class="m-label">50% – 100%<small>Moderate Trend / Normal Day</small></div>
+    <p>Price extends beyond the range by half to one full length of the IB height. A pullback after this move typically offers a trend-continuation entry, such as retesting the broken Initial Balance Low from below as new resistance.</p>
+  </div>
+  <div class="meaning reveal">
+    <div class="m-label">&gt; 100%<small>Trend Day / Double Distribution</small></div>
+    <p>Price moves more than 1.0x the total IB height past the initial boundary. This signals strong institutional conviction, leading to shallow pullbacks and a sustained directional Trend Day.</p>
+  </div>
+</footer>
+
+<div class="credit">Loli's Trading Calculator</div>
+
+<script>
+(function(){
+  const VIX_MULT = 1.2;
+  const SQRT_252 = 15.87;
+
+  const $ = id => document.getElementById(id);
+  const num = id => {
+    const v = parseFloat($(id).value);
+    return Number.isFinite(v) ? v : null;
+  };
+  const fmt = (n, d=2) => n.toLocaleString('en-US', {minimumFractionDigits:d, maximumFractionDigits:d});
+
+  /* ---------- hero scroll fade ---------- */
+  const hero = $('hero'), wrap = $('portraitWrap'), title = $('heroTitle'), hint = $('scrollHint');
+  const clamp = (x,a,b) => Math.min(b, Math.max(a, x));
+
+  function onScroll(){
+    const total = hero.offsetHeight - window.innerHeight;
+    const p = clamp(window.scrollY / total, 0, 1);
+    const fadeIn = clamp((p - 0.05) / 0.5, 0, 1);
+    wrap.style.opacity = fadeIn;
+    wrap.style.transform = `translateY(${(1 - fadeIn) * 40}px) scale(${0.96 + fadeIn * 0.04})`;
+    title.style.transform = `translateY(${-p * 30}px)`;
+    title.style.opacity = 1 - clamp((p - 0.7) / 0.3, 0, 1) * 0.9;
+    hint.style.opacity = 1 - clamp(p * 6, 0, 1);
+  }
+  window.addEventListener('scroll', onScroll, {passive:true});
+  window.addEventListener('resize', onScroll);
+  onScroll();
+
+  const img = $('portraitImg');
+  img.addEventListener('error', () => {
+    img.style.display = 'none';
+    $('portraitFallback').style.display = 'flex';
+  });
+
+  /* ---------- reveal on scroll ---------- */
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} });
+  }, {threshold:0.12});
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  /* ---------- Equation 1: VIX ---------- */
+  function calcVix(){
+    const vix = num('vixClose'), open = num('nqOpen');
+    const set = (id, v) => $(id).textContent = v;
+    if(vix === null || open === null){
+      ['vixHigh','vixLow','vixPct','vixPts'].forEach(i => set(i, '—'));
+      return;
+    }
+    const pct = (vix * VIX_MULT) / SQRT_252;
+    const pts = (pct / 100) * open;
+    set('vixPct', fmt(pct) + '%');
+    set('vixPts', fmt(pts));
+    set('vixHigh', fmt(open + pts));
+    set('vixLow',  fmt(open - pts));
+  }
+
+  /* ---------- Equation 2: IB extension ---------- */
+  function category(p){
+    if(p < 50) return {
+      title:'Less than 50% Extension',
+      sub:'Weak / Failed Extension',
+      text:'Price breaks out of the initial range by less than half of the IB height and falls back inside. This shows that buyers or sellers are defending the boundary, signaling a Range Bound or Neutral Day suited for mean-reversion trades back toward the IB midpoint or opposite end.'
+    };
+    if(p <= 100) return {
+      title:'50% to 100% Extension',
+      sub:'Moderate Trend / Normal Day',
+      text:'Price extends beyond the range by half to one full length of the IB height. A pullback after this move typically offers a trend-continuation entry, such as retesting the broken Initial Balance Low from below as new resistance.'
+    };
+    return {
+      title:'Greater than 100% Extension',
+      sub:'Trend Day / Double Distribution',
+      text:'Price moves more than 1.0x the total IB height past the initial boundary. This signals strong institutional conviction, leading to shallow pullbacks and a sustained directional Trend Day.'
+    };
+  }
+
+  function box(sideLabel, calcText, p){
+    const c = category(p);
+    const inside = p < 0
+      ? '<div class="warn">Negative result: the current point is still inside the initial balance, so there is no extension yet.</div>'
+      : '';
+    return `
+      <div class="ext-box">
+        <div class="ext-top">
+          <div>
+            <div class="side">${sideLabel}</div>
+            <div class="pct">${fmt(p)}%</div>
+          </div>
+          <div class="calc">${calcText}</div>
+        </div>
+        <h3>${c.title} <span>— ${c.sub}</span></h3>
+        <p>${c.text}</p>
+        ${inside}
+      </div>`;
+  }
+
+  function calcIB(){
+    const ibh = num('ibh'), ibl = num('ibl');
+    const ch = num('ch'), cl = num('cl');
+    const out = $('extResults');
+    const ibwEl = $('ibw');
+
+    if(ibh === null || ibl === null){
+      ibwEl.textContent = '—';
+      out.innerHTML = '';
+      return;
+    }
+    const ibw = ibh - ibl;
+    ibwEl.textContent = fmt(ibw);
+
+    if(ibw <= 0){
+      out.innerHTML = '<div class="note">IBH must be higher than IBL to calculate the initial balance width.</div>';
+      return;
+    }
+
+    let html = '';
+    if(cl !== null){
+      const x = ibl - cl;
+      html += box('IBL broken first', `x = IBL − CL = ${fmt(x)}<br>x ÷ IBW (${fmt(ibw)}) × 100`, (x / ibw) * 100);
+    }
+    if(ch !== null){
+      const x = ch - ibh;
+      html += box('IBH broken first', `x = CH − IBH = ${fmt(x)}<br>x ÷ IBW (${fmt(ibw)}) × 100`, (x / ibw) * 100);
+    }
+    out.innerHTML = html;
+  }
+
+  ['vixClose','nqOpen'].forEach(id => $(id).addEventListener('input', calcVix));
+  ['ibh','ibl','ch','cl'].forEach(id => $(id).addEventListener('input', calcIB));
+})();
+</script>
+</body>
+</html>
