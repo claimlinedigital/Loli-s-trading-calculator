@@ -1,0 +1,1 @@
+# Loli-s-trading-calculator
